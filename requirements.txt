@@ -1,7 +1,9 @@
 torch
 transformers
-llamaindex
+llama-index
+llama-index-embeddings-huggingface
 chromadb
 web3
 scikit-learn
 pandas
+joblib

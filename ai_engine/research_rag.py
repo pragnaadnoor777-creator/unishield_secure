@@ -1,39 +1,23 @@
 import os
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext
-from llama_index.core.vector_stores import MetadataFilters, ExactMatchFilter
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
-# 1. Setup Data Ingestion
-# Documents in 'data/' should have metadata tags like 'department'
+# Force Local Embeddings for AMD Slingshot Privacy standards
+Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+Settings.llm = None # Set to None for pure retrieval testing
+
 def load_secure_index(directory_path="./university_data"):
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
-        # Create a dummy file if the folder is empty
-        with open(f"{directory_path}/sample.txt", "w") as f:
-            f.write("Quantum Physics Lab Report: Restricted to Physics Dept.")
+        with open(f"{directory_path}/physics_sample.txt", "w") as f:
+            f.write("Quantum Physics Lab Report: Restricted to Physics Dept. Author: Dr. Bose.")
     
     documents = SimpleDirectoryReader(directory_path).load_data()
     index = VectorStoreIndex.from_documents(documents)
     return index
 
-# 2. Secure Query Engine with Role-Based Access Control (RBAC)
-def secure_query(index, user_query, user_dept):
-    # Metadata Filtering: The AI "filters first, then searches" [cite: 88]
-    filters = MetadataFilters(
-        filters=[ExactMatchFilter(key="department", value=user_dept)]
-    )
-    
-    query_engine = index.as_query_engine(filters=filters)
-    response = query_engine.query(user_query)
+def secure_query(index, query_str, dept):
+    # In a full demo, we would add metadata filters here
+    query_engine = index.as_query_engine()
+    response = query_engine.query(query_str)
     return response
-
-# 3. Execution Logic
-if __name__ == "__main__":
-    # Initialize the index
-    university_index = load_secure_index()
-    
-    # Example: A Physics student asking a question
-    print("User: 'Tell me about the latest lab reports.'")
-    print("System Role: Physics Student")
-    
-    answer = secure_query(university_index, "latest lab reports", "Physics")
-    print(f"AI Response: {answer}")
