@@ -1,0 +1,7 @@
+torch
+transformers
+llamaindex
+chromadb
+web3
+scikit-learn
+pandas
