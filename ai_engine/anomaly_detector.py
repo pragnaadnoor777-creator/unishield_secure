@@ -1,39 +1,55 @@
 import pandas as pd
-from sklearn.ensemble import IsolationForest
 import numpy as np
+import joblib
+from sklearn.ensemble import IsolationForest
+from sklearn.metrics import f1_score
 
-# 1. Simulate University Access Logs (Replace with real data later)
-# Features: [Hour of Day, Data Volume (MB), Location_Score (1-10)]
-data = {
-    'hour': [9, 10, 11, 14, 15, 16, 2, 3, 12, 13],
-    'data_volume': [5, 12, 8, 15, 7, 10, 500, 450, 5, 8],
-    'location_id': [1, 1, 2, 1, 1, 2, 9, 9, 1, 1] 
-}
-df = pd.DataFrame(data)
+# 1. Enhanced Data Generation (Normal vs. Attack)
+def generate_campus_data(n_samples=200):
+    # Normal: Day hours, low volume, campus locations
+    normal = pd.DataFrame({
+        'hour': np.random.randint(8, 18, n_samples),
+        'data_volume': np.random.uniform(1, 50, n_samples),
+        'location_id': np.random.randint(1, 3, n_samples),
+        'label': 1  # 1 = Normal
+    })
+    # Attack: Night hours, huge volume, remote locations
+    attacks = pd.DataFrame({
+        'hour': [2, 3, 1, 4],
+        'data_volume': [800, 1200, 950, 1100],
+        'location_id': [9, 8, 9, 7],
+        'label': -1 # -1 = Anomaly
+    })
+    return pd.concat([normal, attacks]).sample(frac=1)
 
-# 2. Initialize the Anomaly Detection Model
-# Contamination defines the expected percentage of outliers in the data
-model = IsolationForest(contamination=0.2, random_state=42)
+# 2. Train and Save Model
+def train_model():
+    df = generate_campus_data()
+    # Features used for training
+    features = ['hour', 'data_volume', 'location_id']
+    
+    # AMD Hardware Note: This model is lightweight enough to run 
+    # locally on Ryzen AI NPUs for secure edge-processing.
+    model = IsolationForest(contamination=0.05, random_state=42)
+    model.fit(df[features])
+    
+    # Save the model to your repository
+    joblib.dump(model, 'ai_engine/anomaly_model.joblib')
+    print(" Model trained and saved as 'anomaly_model.joblib'")
+    
+    # Evaluate (Aiming for 0.90 F1-score as per UniShield-Secure specs)
+    preds = model.predict(df[features])
+    score = f1_score(df['label'], preds, pos_label=-1)
+    print(f" Model F1-Score: {score:.2f}")
 
-# 3. Train the model on "Normal" Behavior
-model.fit(df[['hour', 'data_volume', 'location_id']])
+# 3. Real-time Inference Function
+def predict_risk(hour, volume, loc):
+    model = joblib.load('ai_engine/anomaly_model.joblib')
+    sample = np.array([[hour, volume, loc]])
+    prediction = model.predict(sample)
+    return " HIGH RISK" if prediction[0] == -1 else " LOW RISK"
 
-# 4. Predict Anomalies
-# -1 indicates an anomaly, 1 indicates normal behavior
-df['anomaly_score'] = model.predict(df[['hour', 'data_volume', 'location_id']])
-
-# 5. Output Results
-print("University Access Risk Report:")
-print(df)
-
-# Logic: Flagging a 3 AM bulk download from an unknown location
-def check_access(hour, volume, location):
-    query = np.array([[hour, volume, location]])
-    prediction = model.predict(query)
-    if prediction[0] == -1:
-        return "⚠️ ALERT: Highly suspicious activity detected. Access Blocked."
-    return "✅ Access Granted."
-
-# Example Test
-print("\nTesting Real-time Access Request:")
-print(check_access(3, 800, 10)) # Simulated "Insider Threat"
+if __name__ == "__main__":
+    train_model()
+    # Test an "Insider Threat" scenario
+    print(f"Test Scenario (3 AM, 900MB, Loc 9): {predict_risk(3, 900, 9)}")
